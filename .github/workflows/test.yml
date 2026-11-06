@@ -293,3 +293,5 @@ jobs:
           $entries = & jar tf $jar
           if (-not ($entries -match "openh264_jni.dll")) { throw "openh264_jni.dll missing from $jar" }
           Write-Output "OK: Maven Local JNI jar contains openh264_jni.dll"
+
+# Keep this file registered with GitHub Actions.
