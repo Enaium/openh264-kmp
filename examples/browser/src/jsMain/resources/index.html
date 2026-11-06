@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>openh264-kmp browser demo</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #app { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+        .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+        .panel { display: flex; flex-direction: column; gap: 4px; }
+        .panel span { font-size: 13px; opacity: .7; }
+        video, canvas { max-width: min(46vw, 640px); width: 100%; border-radius: 8px; background: #111; }
+        #status, #stats { font-size: 14px; white-space: pre-line; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div id="status">Starting camera…</div>
+    <div class="row">
+        <div class="panel"><span>Camera (getUserMedia)</span><div id="camera"></div></div>
+        <div class="panel"><span>Decoded (OpenH264)</span><div id="decoded"></div></div>
+    </div>
+    <div id="stats"></div>
+</div>
+<script src="browser-demo.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+headers = openh264_kmp.h
+compilerOpts = -std=c11
+# OpenH264's decoder and the shim are C++, so the final link needs the C++
+# runtime next to the usual libm/pthread. Android links libc++_shared from the
+# NDK in the consuming binary instead (see examples/android-native).
+linkerOpts.linux_x64 = -lm -lpthread -lstdc++
+linkerOpts.linux_arm64 = -lm -lpthread -lstdc++
+linkerOpts.mingw_x64 = -lm -lstdc++
+linkerOpts.macos_x64 = -lm -lc++
+linkerOpts.macos_arm64 = -lm -lc++
+linkerOpts.ios_arm64 = -lm -lc++
+linkerOpts.ios_x64 = -lm -lc++
+linkerOpts.ios_simulator_arm64 = -lm -lc++
+linkerOpts.tvos_arm64 = -lm -lc++
+linkerOpts.tvos_simulator_arm64 = -lm -lc++
+linkerOpts.watchos_arm64 = -lm -lc++
+linkerOpts.watchos_simulator_arm64 = -lm -lc++
+linkerOpts.watchos_device_arm64 = -lm -lc++
+linkerOpts.android_arm64 = -lm
+linkerOpts.android_arm32 = -lm
+linkerOpts.android_x64 = -lm
+linkerOpts.android_x86 = -lm

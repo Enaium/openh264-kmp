@@ -1,0 +1,4 @@
+headers = camera2_headers.h
+headerFilter = camera/*.h media/NdkImage*.h camera2_headers.h
+package = android.camera2
+linkerOpts = -lcamera2ndk -lmediandk

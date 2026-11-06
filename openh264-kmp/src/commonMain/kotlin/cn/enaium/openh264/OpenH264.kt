@@ -1,0 +1,49 @@
+/*
+ * Copyright (c) 2026 Enaium
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package cn.enaium.openh264
+
+/**
+ * Entry point for the OpenH264 binding.
+ *
+ * ```kotlin
+ * OpenH264Decoder.create().use { decoder ->
+ *     decoder.decode(annexBKeyFrame, pts = 0)?.let { render(it) }
+ * }
+ * ```
+ */
+object OpenH264 {
+    /** Version of this Kotlin Multiplatform binding. */
+    const val VERSION: String = "2.7.0.1"
+
+    /** Bit depth of every picture this build decodes. */
+    const val BIT_DEPTH: Int = 8
+
+    /** OpenH264 release the native library was compiled from, e.g. `2.7.0`. */
+    val libraryVersion: String get() = OpenH264Native.versionString()
+
+    /** `major * 10000 + minor * 100 + revision`, e.g. `20700`. */
+    val libraryVersionPacked: Int get() = OpenH264Native.versionPacked()
+
+    /** Same value as [libraryVersionPacked], kept for parity with the encoder bindings. */
+    val apiBuild: Int get() = OpenH264Native.apiBuild()
+}
