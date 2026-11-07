@@ -55,6 +55,9 @@ abstract class PrepareJniLibsTask : DefaultTask() {
     @get:Input
     abstract val cxxSharedTriples: MapProperty<String, String>
 
+    @get:Input
+    abstract val variant: Property<String>
+
     @TaskAction
     fun run() {
         val bin = project.layout.projectDirectory.dir("../build/bin").asFile
@@ -79,10 +82,13 @@ abstract class PrepareJniLibsTask : DefaultTask() {
         }
 
         abis.get().forEach { (target, abi) ->
-            val source = File(bin, "$target/mainDebugShared/libmain.so")
+            val flavor = variant.get()
+            val dirName = if (flavor == "release") "mainReleaseShared" else "mainDebugShared"
+            val source = File(bin, "$target/$dirName/libmain.so")
             if (!source.isFile) {
                 throw GradleException(
-                    "Expected $source - did linkMainDebugShared${target.replaceFirstChar { it.uppercase() }} fail?",
+                    "Expected $source - did link${if (flavor == "release") "MainRelease" else "MainDebug"}Shared" +
+                        "${target.replaceFirstChar { it.uppercase() }} fail?",
                 )
             }
             val abiDir = File(outputDir.get().asFile, abi).apply { mkdirs() }
@@ -104,11 +110,13 @@ val prepareJniLibs = tasks.register<PrepareJniLibsTask>("prepareJniLibs") {
     outputDir.set(layout.buildDirectory.dir("generated/jniLibs"))
     abis.set(androidAbis)
     cxxSharedTriples.set(androidCxxTriples)
+    variant.set(providers.gradleProperty("nativeVariant").orElse("release"))
 }
 
 androidAbis.keys.forEach { target ->
+    val flavor = providers.gradleProperty("nativeVariant").getOrElse("release")
     val linkTask = project(":examples:android-native").tasks.named(
-        "linkMainDebugShared${target.replaceFirstChar { it.uppercase() }}",
+        "link${if (flavor == "release") "MainRelease" else "MainDebug"}Shared${target.replaceFirstChar { it.uppercase() }}",
     )
     prepareJniLibs.configure {
         dependsOn(linkTask)
