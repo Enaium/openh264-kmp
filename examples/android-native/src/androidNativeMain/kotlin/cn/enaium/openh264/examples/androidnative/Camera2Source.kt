@@ -40,6 +40,14 @@ import android.camera2.ACameraOutputTarget_free
 import android.camera2.ACaptureRequest_addTarget
 import android.camera2.ACaptureRequest_free
 import android.camera2.ACaptureRequest_setEntry_u8
+import android.camera2.ACaptureRequest_setEntry_i32
+import android.camera2.ACaptureRequest_setEntry_i64
+import android.camera2.ACAMERA_CONTROL_AE_TARGET_FPS_RANGE
+import android.camera2.ACAMERA_CONTROL_AE_MODE
+import android.camera2.ACAMERA_CONTROL_AE_MODE_ON
+import android.camera2.ACAMERA_CONTROL_SCENE_MODE
+import android.camera2.ACAMERA_CONTROL_SCENE_MODE_DISABLED
+import android.camera2.ACAMERA_SENSOR_FRAME_DURATION
 import android.camera2.ACAMERA_CONTROL_AWB_MODE
 import android.camera2.ACAMERA_CONTROL_AWB_MODE_AUTO
 import android.camera2.ACAMERA_CONTROL_MODE
@@ -61,7 +69,7 @@ import android.camera2.AImage_getPlaneData
 import android.camera2.AImage_getPlanePixelStride
 import android.camera2.AImage_getPlaneRowStride
 import android.camera2.AImage_getWidth
-import android.camera2.TEMPLATE_RECORD
+import android.camera2.TEMPLATE_PREVIEW
 import cnames.structs.ACameraCaptureSession
 import cnames.structs.ACameraDevice
 import cnames.structs.ACameraManager
@@ -79,6 +87,8 @@ import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.CPointerVar
 import kotlinx.cinterop.IntVar
+import kotlinx.cinterop.LongVar
+import kotlinx.cinterop.cValuesOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.convert
@@ -205,7 +215,7 @@ internal class Camera2Source(
 
             val requestPtr = alloc<CPointerVar<ACaptureRequest>>()
             checkStatus(
-                ACameraDevice_createCaptureRequest(device, TEMPLATE_RECORD, requestPtr.ptr),
+                ACameraDevice_createCaptureRequest(device, TEMPLATE_PREVIEW, requestPtr.ptr),
                 "createCaptureRequest",
             )
             val request = requestPtr.value
@@ -239,6 +249,39 @@ internal class Camera2Source(
                         mode.ptr,
                     ),
                     "set control mode auto",
+                )
+                val aeMode = alloc<UByteVar>()
+                aeMode.value = ACAMERA_CONTROL_AE_MODE_ON.toUByte()
+                checkStatus(
+                    ACaptureRequest_setEntry_u8(request, ACAMERA_CONTROL_AE_MODE, 1u, aeMode.ptr),
+                    "set AE mode",
+                )
+                val scene = alloc<UByteVar>()
+                scene.value = ACAMERA_CONTROL_SCENE_MODE_DISABLED.toUByte()
+                checkStatus(
+                    ACaptureRequest_setEntry_u8(request, ACAMERA_CONTROL_SCENE_MODE, 1u, scene.ptr),
+                    "set scene mode",
+                )
+                val fpsRange = cValuesOf(30, 30)
+                checkStatus(
+                    ACaptureRequest_setEntry_i32(
+                        request,
+                        ACAMERA_CONTROL_AE_TARGET_FPS_RANGE,
+                        2u,
+                        fpsRange.ptr,
+                    ),
+                    "set AE target fps range",
+                )
+                val frameDuration = alloc<LongVar>()
+                frameDuration.value = 33_333_333L
+                checkStatus(
+                    ACaptureRequest_setEntry_i64(
+                        request,
+                        ACAMERA_SENSOR_FRAME_DURATION,
+                        1u,
+                        frameDuration.ptr,
+                    ),
+                    "set sensor frame duration",
                 )
             }
 
