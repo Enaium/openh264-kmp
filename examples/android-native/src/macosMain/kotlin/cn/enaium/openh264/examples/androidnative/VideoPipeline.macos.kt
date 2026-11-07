@@ -105,7 +105,7 @@ private class DesktopVideoPipeline : VideoPipeline {
 
             val size = outWidth * outHeight * 4
             if (rgba.size != size) rgba = ByteArray(size)
-            LibYuv.i420ToRgba(y, u, v, rgba, outWidth, outHeight)
+            LibYuv.i420ToRgbaBt709(y, u, v, rgba, outWidth, outHeight)
             latest = VideoFrame(outWidth, outHeight, rgba)
         } catch (t: Throwable) {
             error = t.message ?: t.toString()
