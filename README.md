@@ -37,6 +37,22 @@ worker threads when `DECODER_OPTION_NUM_OF_THREADS` is set, so the WebAssembly
 build needs neither pthreads nor a patched copy; every other target uses the
 portable single-thread decoder path as well.
 
+The standalone module, the JS glue and the licence are also published as the
+`@enaium/openh264-kmp` npm package (`:openh264-kmp:assembleWasmNpm` stages it in
+`build/npm`, `:openh264-kmp:publishWasmNpm` publishes it). npm only accepts
+three-component semver, so `2.7.0.1` is published as `2.7.0-1` under
+the `latest` tag. Plain JavaScript apps instantiate it without Kotlin:
+
+```js
+import { initOpenH264Kmp } from "@enaium/openh264-kmp";
+
+const module = await initOpenH264Kmp();
+console.log(module.versionString());
+```
+
+The npm token is read from `npm.publish.key` in `~/.gradle/gradle.properties`
+(or `-Pnpm.publish.key=<token>`); CI reads the `NPM_PUBLISH_KEY` secret.
+
 This build is decoder-only and 8-bit. It outputs 4:2:0 (I420) pictures.
 
 ## Using the library

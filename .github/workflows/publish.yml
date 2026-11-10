@@ -77,6 +77,14 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
 
+      - name: Publish the @enaium/openh264-kmp npm package
+        run: |
+          install -d "$HOME/.gradle"
+          printf 'npm.publish.key=%s\n' "$NPM_PUBLISH_KEY" >> "$HOME/.gradle/gradle.properties"
+          ./gradlew --no-daemon --stacktrace :openh264-kmp:publishWasmNpm
+        env:
+          NPM_PUBLISH_KEY: ${{ secrets.NPM_PUBLISH_KEY }}
+
   publish-linux:
     name: Publish Linux (Android AAR + Linux/mingw + linux JNI)
     runs-on: ubuntu-latest
