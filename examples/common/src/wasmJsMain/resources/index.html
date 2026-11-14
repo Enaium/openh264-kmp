@@ -13,6 +13,7 @@
 <!-- camera-kmp's getUserMedia glue is a classic script that installs the
      cameraKmp_* globals; it has to run before the Kotlin/Wasm module. -->
 <script src="./camera-kmp-web.js"></script>
+<script src="./webcodecs.js"></script>
 <script type="module">
     import { initSdlKmp } from './sdl_kmp_glue.js';
     import { initImguiKmp } from './imgui_kmp_glue.js';

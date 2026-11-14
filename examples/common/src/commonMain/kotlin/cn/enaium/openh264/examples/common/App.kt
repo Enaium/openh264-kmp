@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2026 Enaium
- * SPDX-License-Identifier: LGPL-3.0-or-later
+ * SPDX-License-Identifier: BSD-2-Clause
  */
 
 package cn.enaium.openh264.examples.common
@@ -15,8 +15,8 @@ import cn.enaium.imgui.ImVec2
 import cn.enaium.imgui.backends.sdl.ImGuiSdlBackend
 import cn.enaium.imgui.backends.sdl.ImGuiSdlRendererBackend
 import cn.enaium.imgui.backends.sdl.toImTextureID
-import cn.enaium.openh264.OpenH264
 import cn.enaium.libyuv.LibYuv
+import cn.enaium.openh264.OpenH264
 import cn.enaium.sdl.SDL
 import cn.enaium.sdl.SDLBlendMode
 import cn.enaium.sdl.SDLColor
@@ -34,9 +34,8 @@ import kotlin.math.min
 typealias AppFrameDriver = (step: () -> Boolean, done: () -> Unit) -> Unit
 
 /**
- * Shared SDL3 + ImGui example for the JVM, native, Android (JVM and native)
- * and wasmJs hosts. The left picture is the camera-kmp capture, the right one
- * is the embedded H.264 stream decoded by OpenH264.
+ * Shared SDL3 + ImGui example. The left picture is the camera-kmp capture, the
+ * right one is the same picture after the codec round trip.
  */
 fun runExample(frames: Int = Int.MAX_VALUE, driver: AppFrameDriver? = null) {
     SDL.setMainReady()
@@ -67,6 +66,11 @@ fun runExample(frames: Int = Int.MAX_VALUE, driver: AppFrameDriver? = null) {
     fun finish() {
         if (finished) return
         finished = true
+        val status = pipeline.status
+        println(
+            "example: encoded=${status.encodedFrames} decoded=${status.decodedFrames} " +
+                "bytes=${status.encodedBytes} error=${status.error}",
+        )
         pipeline.close()
         backend.close()
         ImGui.destroyContext(context)
@@ -172,7 +176,7 @@ private class FrameTextures(
     }
 }
 
-/** Statistics window with the camera and decoder pictures side by side. */
+/** Statistics window with the camera and the decoded picture side by side. */
 private class ExampleUi(
     renderer: cn.enaium.sdl.SDLRenderer,
     backend: ImGuiSdlRendererBackend,
@@ -184,7 +188,9 @@ private class ExampleUi(
     private var fpsSince = SDL.getTicks()
     private var fpsFrames = 0
     private var uiFps = 0f
+    private var lastEncoded = 0L
     private var lastDecodedCount = 0L
+    private var encodeRate = 0f
     private var decodeRate = 0f
 
     fun draw(pipeline: ExamplePipeline) {
@@ -198,12 +204,14 @@ private class ExampleUi(
         ImGui.setNextWindowSize(display, ImGuiCond.ALWAYS)
         ImGui.begin("openh264-kmp", null, WINDOW_FLAGS)
 
-        ImGui.text("OpenH264 ${OpenH264.libraryVersion} (api ${OpenH264.apiBuild}) - camera-kmp + SDL3 + ImGui")
+        ImGui.text("OpenH264 ${OpenH264.libraryVersion} (api ${OpenH264.apiBuild}) - camera-kmp + ${platformEncoderName} encode")
         ImGui.text("camera: ${status.source}")
         ImGui.text(
-            "ui ${uiFps.toInt()} fps  |  decode ${decodeRate.toInt()}/s  |  " +
-                "decoded ${status.decodedFrames}  |  last ${status.lastFrameSize} B",
+            "ui ${uiFps.toInt()} fps  |  encode ${encodeRate.toInt()}/s  decode ${decodeRate.toInt()}/s  |  " +
+                "encoded ${status.encodedFrames}  |  decoded ${status.decodedFrames}  |  " +
+                "last ${status.lastFrameSize} B",
         )
+        ImGui.text("bitrate: ${bitrateKbps(status)} kbit/s")
         status.error?.let { ImGui.text("error: $it") }
 
         if (ImGui.button("restart camera")) pipeline.restartCamera()
@@ -247,11 +255,19 @@ private class ExampleUi(
         if (elapsed >= 1_000u) {
             val seconds = elapsed.toFloat() / 1_000f
             uiFps = fpsFrames / seconds
+            encodeRate = (status.encodedFrames - lastEncoded) / seconds
             decodeRate = (status.decodedFrames - lastDecodedCount) / seconds
+            lastEncoded = status.encodedFrames
             lastDecodedCount = status.decodedFrames
             fpsSince = now
             fpsFrames = 0
         }
+    }
+
+    private fun bitrateKbps(status: ExampleStatus): Long {
+        if (status.encodedFrames == 0L) return 0
+        val bytesPerFrame = status.encodedBytes / status.encodedFrames
+        return bytesPerFrame * 30 * 8 / 1_000
     }
 
     private companion object {
