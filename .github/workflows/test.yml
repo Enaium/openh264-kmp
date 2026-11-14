@@ -62,7 +62,7 @@ jobs:
         run: ./gradlew --no-daemon --stacktrace :examples:common:linkDebugExecutableMacosArm64
 
       - name: Build the browser example
-        run: ./gradlew --no-daemon --stacktrace :examples:browser:wasmJsBrowserDistribution
+        run: ./gradlew --no-daemon --stacktrace :examples:common:wasmJsBrowserDistribution
 
       - name: Decode signing key
         run: |

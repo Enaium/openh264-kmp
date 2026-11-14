@@ -146,7 +146,12 @@ kotlin {
     }
 
     wasmJs {
-        browser()
+        browser {
+            commonWebpackConfig {
+                outputFileName = "common.js"
+            }
+        }
+        binaries.executable()
     }
 
     targets.withType<KotlinNativeTarget>().configureEach {
@@ -168,7 +173,44 @@ kotlin {
                 implementation(libs.camera.kmp)
             }
         }
+
+        wasmJsMain {
+            dependencies {
+                implementation(libs.kotlinx.browser)
+                implementation(npm("@enaium/sdl-kmp", "3.4.18-2"))
+                implementation(npm("@enaium/imgui-kmp", "1.93.0-2"))
+                implementation(npm("@enaium/camera-kmp", "1.0.0"))
+            }
+        }
     }
+}
+
+
+// ==================== wasmJs browser host ====================
+// The SDL, imgui and camera Emscripten runtimes are npm packages installed by
+// the Kotlin/Wasm toolchain; serve them next to the Kotlin module so
+// index.html can initialize them before importing common.js.
+val wasmNodeModules = rootProject.layout.buildDirectory.dir("wasm/node_modules/@enaium")
+
+val copyWasmAssets = tasks.register<Copy>("copyWasmAssets") {
+    description = "Copies the sdl/imgui/camera Emscripten runtimes into the web resources."
+    dependsOn(":kotlinWasmNpmInstall")
+    from(wasmNodeModules.map { it.dir("sdl-kmp") }) {
+        include("sdl_kmp_glue.js", "sdl_wasm.js", "sdl_wasm.wasm")
+    }
+    from(wasmNodeModules.map { it.dir("imgui-kmp") }) {
+        include("imgui_kmp_glue.js", "imgui_kmp_exports.js", "imgui_wasm.js", "imgui_wasm.wasm")
+    }
+    from(wasmNodeModules.map { it.dir("camera-kmp") }) {
+        include("camera-kmp-web.js")
+    }
+    into(layout.buildDirectory.dir("generated/wasmResources"))
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named<org.gradle.language.jvm.tasks.ProcessResources>("wasmJsProcessResources") {
+    dependsOn(copyWasmAssets)
+    from(copyWasmAssets)
 }
 
 // Fill the stub directories the Android links above point at. Depending on the
