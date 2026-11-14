@@ -180,7 +180,7 @@ jobs:
 
       - name: Verify the native example APK
         run: |
-          APK="examples/android-native/android/build/outputs/apk/debug/android-debug.apk"
+          APK="examples/android-native/build/outputs/apk/debug/android-native-debug.apk"
           test -f "$APK" || { echo "FAIL: native example APK missing"; exit 1; }
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
             unzip -l "$APK" | grep -q "lib/$abi/libmain.so" || { echo "FAIL: APK lacks $abi libmain.so"; exit 1; }
