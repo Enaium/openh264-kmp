@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.OpenH264Camera" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.OPENH264Camera" parent="android:Theme.Material.NoActionBar.Fullscreen" />
 </resources>

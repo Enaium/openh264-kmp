@@ -3,17 +3,19 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <uses-feature
-        android:name="android.hardware.camera.any"
-        android:required="true" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:glEsVersion="0x00020000" />
 
     <application
-        android:label="OpenH264 Camera"
-        android:theme="@style/Theme.OpenH264Camera">
+        android:label="openh264 example"
+        android:theme="@style/Theme.OPENH264Camera"
+        android:hardwareAccelerated="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait">
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

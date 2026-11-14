@@ -59,10 +59,10 @@ jobs:
           :openh264-kmp:compileKotlinWatchosDeviceArm64
 
       - name: Link the native example for macOS
-        run: ./gradlew --no-daemon --stacktrace :examples:android-native:linkDebugExecutableMacosArm64
+        run: ./gradlew --no-daemon --stacktrace :examples:common:linkDebugExecutableMacosArm64
 
       - name: Build the browser example
-        run: ./gradlew --no-daemon --stacktrace :examples:browser:jsBrowserDistribution
+        run: ./gradlew --no-daemon --stacktrace :examples:browser:wasmJsBrowserDistribution
 
       - name: Decode signing key
         run: |
@@ -164,7 +164,7 @@ jobs:
         run: >
           ./gradlew --no-daemon --stacktrace
           :examples:android-jvm:assembleDebug
-          :examples:android-native:android:assembleDebug
+          :examples:android-native:assembleDebug
 
       - name: Verify the Android JVM example APK
         run: |

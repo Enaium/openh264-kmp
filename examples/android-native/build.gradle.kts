@@ -1,140 +1,163 @@
 import java.io.File
 
 plugins {
-    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.application)
 }
 
-// ---------------------------------------------------------------------------
-// Android stub libraries
-//
-// SDL3's Android drivers reference the platform libraries (libEGL, libGLESv2,
-// libOpenSLES, libaaudio, ...) at link time, and Kotlin/Native ships stubs for
-// them in its Android toolchain sysroot. The NDK's own stubs cannot stand in:
-// the toolchain's linker cannot read their compressed debug sections. That
-// sysroot only exists once the toolchain has been downloaded, which happens
-// while a build runs, so every Android link is pointed at a directory this
-// build fills first (running the target's compile downloads the toolchain).
-// ---------------------------------------------------------------------------
-val androidStubDir = layout.buildDirectory.dir("androidStubs")
-
-/** Android API level the stubs are taken for (AAudio needs 26). */
-val ANDROID_API_LEVEL = 26
-
-/** ABI to the NDK triple its stubs live under. */
-val androidTriples = mapOf(
-    "arm64-v8a" to "aarch64-linux-android",
-    "armeabi-v7a" to "arm-linux-androideabi",
-    "x86_64" to "x86_64-linux-android",
-    "x86" to "i686-linux-android",
+// The native module builds libmain.so (with an exported SDL_main) for every
+// androidNative ABI; copy those into jniLibs and depend on the link tasks so
+// the APK is assembled after them. libc++_shared.so is packaged next to it
+// because libmain.so links the shared C++ runtime that stock Android images
+// do not ship.
+val allAndroidAbis = mapOf(
+    "androidNativeArm64" to "arm64-v8a",
+    "androidNativeArm32" to "armeabi-v7a",
+    "androidNativeX64" to "x86_64",
+    "androidNativeX86" to "x86",
 )
 
-/** Where the Android links look for the stubs. */
-fun androidStubLinkDir(abi: String): String =
-    androidStubDir.get().asFile.resolve(abi).absolutePath
+/**
+ * ABIs the APK links and packages: all four by default. Narrow it with
+ * `-PandroidAbis=arm64-v8a` when the host cannot link all of them - an Apple
+ * Silicon Mac without Rosetta cannot run the x86_64 clang the Kotlin/Native
+ * Android toolchain ships, so the 32 bit ARM and x86 ABIs are out of reach
+ * there. CI and release builds leave it unset.
+ */
+val androidAbis: Map<String, String> = providers.gradleProperty("androidAbis").orNull
+    ?.split(",")
+    ?.map { it.trim() }
+    ?.filter { it.isNotEmpty() }
+    ?.let { requested ->
+        allAndroidAbis.filterValues { it in requested }.also {
+            require(it.isNotEmpty()) {
+                "androidAbis=${requested.joinToString(",")} matches none of ${allAndroidAbis.values}"
+            }
+        }
+    }
+    ?: allAndroidAbis
 
-/** The stubs inside the Kotlin/Native Android sysroot, or `null` before it is downloaded. */
-fun konanAndroidStubDir(abi: String): File? {
-    val triple = androidTriples[abi] ?: return null
-    val konanData = System.getenv("KONAN_DATA_DIR")
-        ?: "${System.getProperty("user.home")}/.konan"
-    return File(konanData, "dependencies").listFiles()
-        ?.filter { it.isDirectory && it.name.matches(Regex("target-toolchain-.*-android_ndk")) }
-        ?.maxByOrNull { it.name }
-        ?.resolve("sysroot/usr/lib/$triple/$ANDROID_API_LEVEL")
-        ?.takeIf { it.isDirectory }
-}
-
-// Shared by every Android ABI:
-//  - compiler-rt builtins embedded in the sdl-kmp/imgui-kmp klibs overlap with
-//    K/N's bundled libgcc on some ABIs (e.g. __sync_* on armv7), so the first
-//    definition wins;
-//  - binding the linked archives' globals locally keeps symbol resolution
-//    deterministic when SDL, ImGui, libyuv and OpenH264 are all in libmain.so;
-//  - Android devices come with either 4 KB or 16 KB memory pages, so every
-//    PT_LOAD segment of libmain.so is aligned for both.
-val androidMainLinkerOpts = listOf(
-    "-Wl,--allow-multiple-definition",
-    "-Wl,-Bsymbolic",
-    "-Wl,-z,max-page-size=16384",
-    "-Wl,-z,common-page-size=16384",
+val androidCxxTriples = mapOf(
+    "androidNativeArm64" to "aarch64-linux-android",
+    "androidNativeArm32" to "arm-linux-androideabi",
+    "androidNativeX64" to "x86_64-linux-android",
+    "androidNativeX86" to "i686-linux-android",
 )
 
-/** NDK sysroot library directory for [abi], or `null` when no NDK is installed. */
-fun androidNdkLibDir(abi: String): String? {
-    val sysroot = rootProject.extra["androidNdkSysroot"] as String? ?: return null
-    val triple = androidTriples[abi] ?: return null
-    return "$sysroot/usr/lib/$triple"
-}
+abstract class PrepareJniLibsTask : DefaultTask() {
 
-kotlin {
-    // A desktop executable is not the main target of this module, but it runs
-    // the exact same SDL/ImGui/libyuv/OpenH264 UI on the build host. That is what
-    // makes the example verifiable without an Android device.
-    macosArm64 {
-        binaries.executable()
-    }
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
 
-    // Android native: SDLActivity (from the SDL3 Android archive the wrapper
-    // depends on) loads libmain.so and calls its exported SDL_main.
-    listOf(
-        "androidNativeArm64" to "arm64-v8a",
-        "androidNativeArm32" to "armeabi-v7a",
-        "androidNativeX64" to "x86_64",
-        "androidNativeX86" to "x86",
-    ).forEach { (targetName, abi) ->
-        val target = when (targetName) {
-            "androidNativeArm64" -> androidNativeArm64()
-            "androidNativeArm32" -> androidNativeArm32()
-            "androidNativeX64" -> androidNativeX64()
-            else -> androidNativeX86()
+    @get:Input
+    abstract val abis: MapProperty<String, String>
+
+    @get:Input
+    abstract val cxxSharedTriples: MapProperty<String, String>
+
+    @TaskAction
+    fun run() {
+        val bin = project.layout.projectDirectory.dir("../common/build/bin").asFile
+        outputDir.get().asFile.deleteRecursively()
+
+        /** NDK's libc++_shared.so, or the Kotlin/Native toolchain fallback. */
+        fun cxxShared(target: String): File? {
+            val triple = cxxSharedTriples.get()[target] ?: return null
+            val sysroot = project.rootProject.extra["androidNdkSysroot"] as String?
+            if (sysroot != null) {
+                val fromNdk = File(sysroot, "usr/lib/$triple/libc++_shared.so")
+                if (fromNdk.isFile) return fromNdk
+            }
+
+            val konanData = System.getenv("KONAN_DATA_DIR")
+                ?: System.getProperty("user.home")?.let { File(it, ".konan") }?.absolutePath
+            return konanData?.let { data ->
+                File(data, "dependencies").listFiles()
+                    ?.firstOrNull { it.isDirectory && it.name.matches(Regex("target-toolchain-.*-android_ndk")) }
+                    ?.resolve("sysroot/usr/lib/$triple/libc++_shared.so")
+            }?.takeIf { it.isFile }
         }
-        target.compilations.getByName("main").cinterops.create("androidCamera2") {
-            defFile(file("src/nativeInterop/cinterop/android_camera2.def"))
-            includeDirs(file("src/nativeInterop/cinterop"))
-        }
-        target.binaries.sharedLib("main") {
-            linkerOpts("-L" + androidStubLinkDir(abi))
-            // OpenH264 is built with the SDK NDK, so libmain.so links that NDK's
-            // shared C++ runtime (packaged into the APK next to it) instead of
-            // the much older one bundled with Kotlin/Native.
-            androidNdkLibDir(abi)?.let { linkerOpts("$it/libc++_shared.so") }
-            linkerOpts(*androidMainLinkerOpts.toTypedArray())
-        }
-    }
 
-    // The repository disables the automatic default hierarchy template
-    // (gradle.properties), so materialize it here: nativeMain holds the shared
-    // desktop entry point and platform actuals, androidNativeMain the SDL_main.
-    applyDefaultHierarchyTemplate()
+        abis.get().forEach { (target, abi) ->
+            val source = File(bin, "$target/mainDebugShared/libmain.so")
+            if (!source.isFile) {
+                throw GradleException(
+                    "Expected $source - did linkMainDebugShared${target.replaceFirstChar { it.uppercase() }} fail?",
+                )
+            }
+            val abiDir = File(outputDir.get().asFile, abi).apply { mkdirs() }
+            source.copyTo(File(abiDir, "libmain.so"), overwrite = true)
 
-    sourceSets {
-        commonMain {
-            dependencies {
-                implementation(project(":openh264-kmp"))
-                implementation(libs.libyuv.kmp)
-                implementation(libs.imgui.kmp)
-                implementation(libs.sdl.kmp)
+            val shared = cxxShared(target)
+            if (shared == null) {
+                logger.warn("No libc++_shared.so for $abi; libmain.so may fail to load at runtime.")
+            } else {
+                shared.copyTo(File(abiDir, "libc++_shared.so"), overwrite = true)
             }
         }
     }
 }
 
-// Fill the stub directories the Android links above point at. Depending on the
-// compile is what guarantees the toolchain - and with it the stubs - has been
-// downloaded by the time they are copied.
-mapOf(
-    "AndroidNativeArm64" to "arm64-v8a",
-    "AndroidNativeArm32" to "armeabi-v7a",
-    "AndroidNativeX64" to "x86_64",
-    "AndroidNativeX86" to "x86",
-).forEach { (targetName, abi) ->
-    val copyStubs = tasks.register<Copy>("copyAndroidStubs$targetName") {
-        description = "Copies the Android stub libraries for $abi into the link directory."
-        dependsOn("compileKotlin$targetName")
-        from(provider { konanAndroidStubDir(abi)?.let { listOf(it) } ?: emptyList<File>() })
-        into(androidStubDir.map { it.dir(abi) })
+val prepareJniLibs = tasks.register<PrepareJniLibsTask>("prepareJniLibs") {
+    group = "build"
+    description = "Collects the linked libmain.so of every Android ABI into jniLibs."
+    outputDir.set(layout.buildDirectory.dir("generated/jniLibs"))
+    abis.set(androidAbis)
+    cxxSharedTriples.set(androidCxxTriples)
+}
+
+androidAbis.keys.forEach { target ->
+    val taskPath = ":examples:common:linkMainDebugShared${target.replaceFirstChar { it.uppercase() }}"
+    val output = project(":examples:common").layout.buildDirectory.file(
+        "bin/$target/mainDebugShared/libmain.so",
+    )
+    prepareJniLibs.configure {
+        dependsOn(taskPath)
+        // Re-package whenever a linked libmain.so changes; without this the task
+        // stays UP-TO-DATE and a rebuilt library never reaches the APK.
+        inputs.file(output)
     }
-    listOf("linkMainDebugShared$targetName", "linkMainReleaseShared$targetName").forEach { linkName ->
-        tasks.named(linkName) { dependsOn(copyStubs) }
+}
+
+android {
+    namespace = "cn.enaium.openh264.examples.androidnative"
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = "cn.enaium.openh264.examples.androidnative"
+        minSdk = 26
+        targetSdk = 37
+        versionCode = 1
+        versionName = "1.0"
+
+        // Keeps the AAR-shipped libsdl_jni.so down to the ABIs libmain.so was
+        // built for.
+        ndk {
+            abiFilters += androidAbis.values
+        }
     }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+}
+
+// Register the collected libmain.so directory with AGP's variant API.
+androidComponents {
+    onVariants { variant ->
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(prepareJniLibs) { it.outputDir }
+    }
+}
+
+dependencies {
+    // sdl-kmp's Android variant carries SDL's Java layer (org.libsdl.app:
+    // SDLActivity, SDLSurface, ...) and its own JNI library; libmain.so links
+    // SDL3 statically and exports the JNI entry points SDLActivity calls.
+    implementation(libs.sdl.kmp)
 }

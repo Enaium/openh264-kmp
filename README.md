@@ -117,70 +117,46 @@ version (`2.7.0.1`).
 
 ## Examples
 
-All three examples encode with the platform's hardware encoder and decode with
-this binding.
+The examples share one SDL3 + Dear ImGui app in `examples/common` (targets:
+`jvm`, macOS/Linux/Windows native, Android JVM, Android Native and `wasmJs`).
+Camera frames come from [camera-kmp](https://github.com/Enaium/camera-kmp):
+Camera2 on Android, Camera2 NDK and V4L2 on Android Native,
+AVFoundation/V4L2/Media Foundation on the desktops and `getUserMedia` in the
+browser, so the same code runs on every target instead of an Android-only
+camera implementation.
 
-`examples/android-jvm` is a Compose loopback:
+The UI shows the camera-kmp capture next to an embedded single-frame H.264
+Annex-B stream decoded by `OpenH264Decoder`; the decoder runs even when no
+camera is available (CI, denied permission) by using a deterministic test
+pattern.
 
-1. CameraX `ImageAnalysis` provides `YUV_420_888` frames.
-2. [`cn.enaium.libyuv:libyuv-kmp:1.2.0`](https://github.com/Enaium/libyuv-kmp)
-   turns the camera's planes into tightly packed I420.
-3. A `video/avc` `MediaCodec` encoder produces Annex-B access units
-   (`prepend-sps-pps-to-idr-frames` is enabled so every IDR is self-contained).
-4. `OpenH264Decoder` decodes each access unit; libyuv converts I420 to RGBA and
-   a `View` draws it.
+The three host modules are thin wrappers around the shared code:
+
+- `examples/android-jvm` - an Android app whose `SDLActivity.main()` calls the
+  shared `runExample()`.
+- `examples/android-native` - an Android app that packages the `libmain.so`
+  built by `examples/common`; it carries no camera or UI code of its own.
+- `examples/browser` - the wasmJs host page. The Emscripten runtimes of
+  sdl-kmp, imgui-kmp and camera-kmp are installed as npm packages and served
+  next to the Kotlin module.
 
 ```bash
+# desktop entry of the shared module
+./gradlew :examples:common:linkDebugExecutableMacosArm64
+./examples/common/build/bin/macosArm64/debugExecutable/common.kexe
+
 ./gradlew :examples:android-jvm:assembleDebug
+./gradlew -PandroidAbis=arm64-v8a :examples:android-native:assembleDebug
+
+./gradlew :examples:browser:wasmJsBrowserDistribution
+python3 -m http.server 8080 --directory examples/browser/build/dist/wasmJs/productionExecutable
+# open http://localhost:8080/ - serve over HTTPS or localhost for the camera
 ```
 
-`examples/android-native` is the same loop written for Kotlin/Native with SDL3
-and Dear ImGui ([sdl-kmp](https://github.com/Enaium/sdl-kmp) `3.4.18.1`,
-[imgui-kmp](https://github.com/Enaium/imgui-kmp) `1.93.0.1`):
-
-1. Camera2 NDK (`AImageReader`) captures `YUV_420_888`, converted with libyuv.
-2. The NDK `AMediaCodec` C API encodes `video/avc` from semi-planar input.
-3. `OpenH264Decoder` runs in `libmain.so`, linked statically into the SDL
-   activity.
-4. libyuv converts the decoded I420 frame to RGBA and ImGui draws it.
-
-The module also builds a macOS executable that runs the same UI over a
-synthetic source (MediaCodec is Android-only), which is how the example is
-verified without a device:
-
-```bash
-./gradlew :examples:android-native:linkDebugExecutableMacosArm64
-OPENH264_KMP_FRAMES=40 ./examples/android-native/build/bin/macosArm64/debugExecutable/android-native.kexe
-
-# APK; narrow the ABIs on a host that cannot link all four
-./gradlew -PandroidAbis=arm64-v8a :examples:android-native:android:assembleDebug
-```
-
-### Browser (getUserMedia → WebCodecs AVC → OpenH264)
-
-`examples/browser` is a Kotlin/JS page. It captures the camera with
-`navigator.mediaDevices.getUserMedia()`, encodes AVC with WebCodecs
-`VideoEncoder` configured with `avc: { format: "annexb" }`, and decodes every
-chunk with `OpenH264Decoder` (the same embedded WebAssembly module as the
-published js artifact). The decoded I420 picture is converted to RGBA and
-painted on a second canvas. The page reports the encoded/decoded frame counts,
-the encoder state and any WebCodecs error instead of failing silently.
-
-`getUserMedia` needs a secure context, so serve the page over `localhost`:
-
-```bash
-./gradlew :examples:browser:jsBrowserDistribution
-python3 -m http.server 8080 --directory examples/browser/build/dist/js/productionExecutable
-# open http://localhost:8080/
-```
-
-It also runs against Chrome's fake camera:
-
-```bash
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headless=new --use-fake-device-for-media-stream --use-fake-ui-for-media-stream \
-  http://localhost:8080/
-```
+The SDL3 and imgui-kmp APIs are published on Maven Central
+(`cn.enaium.sdl:sdl-kmp:3.4.18.2`, `cn.enaium.imgui:imgui-kmp:1.93.0.2`); the
+browser runtimes are `@enaium/sdl-kmp@3.4.18-2`, `@enaium/imgui-kmp@1.93.0-2`
+and `@enaium/camera-kmp@1.0.0`.
 
 ## Building from source
 
@@ -191,7 +167,7 @@ git submodule update --init --recursive
 ./gradlew :openh264-kmp:jsNodeTest              # Emscripten module in Node
 ./gradlew :openh264-kmp:wasmJsNodeTest
 ./gradlew :openh264-kmp:testAndroidHostTest
-./gradlew :examples:browser:jsBrowserDistribution
+./gradlew :examples:browser:wasmJsBrowserDistribution
 ./gradlew :examples:android-jvm:assembleDebug
 ```
 

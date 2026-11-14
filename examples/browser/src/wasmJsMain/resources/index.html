@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>openh264-kmp browser example</title>
+    <style>
+        html, body { margin: 0; height: 100%; background: #12121a; overflow: hidden; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<!-- camera-kmp's getUserMedia glue is a classic script that installs the
+     cameraKmp_* globals; it has to run before the Kotlin/Wasm module. -->
+<script src="./camera-kmp-web.js"></script>
+<script type="module">
+    import { initSdlKmp } from './sdl_kmp_glue.js';
+    import { initImguiKmp } from './imgui_kmp_glue.js';
+
+    const canvas = document.getElementById('canvas');
+    canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+    canvas.addEventListener('auxclick', (event) => {
+        if (event.button === 1) event.preventDefault();
+    });
+
+    await initSdlKmp({ canvas });
+    await initImguiKmp();
+    await import('./browser.js');
+</script>
+</body>
+</html>

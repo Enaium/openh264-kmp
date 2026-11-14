@@ -16,9 +16,9 @@ dependencyResolutionManagement {
 rootProject.name = "openh264-kmp"
 
 include(":openh264-kmp")
+include(":examples:common")
 include(":examples:android-jvm")
 include(":examples:android-native")
-include(":examples:android-native:android")
 include(":examples:browser")
 
 // Per-OS/arch JNI artifacts that ship the prebuilt libopenh264_jni shared library as
