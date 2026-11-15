@@ -47,8 +47,12 @@ internal data class ExampleStatus(
  */
 internal class ExamplePipeline {
     private val camera = CameraSource()
-    private val loop = EncodeDecodeLoop()
-    private val pattern = TestPattern(WIDTH, HEIGHT)
+    private var loop = EncodeDecodeLoop()
+    private var pattern: TestPattern? = null
+
+    var settings: CameraSettings = CameraSettings()
+        private set
+
     private var lastCamera: I420Frame? = null
 
     var preview: I420Frame? = null
@@ -70,23 +74,41 @@ internal class ExamplePipeline {
     fun pump() {
         val fresh = camera.poll()
         if (fresh != null) lastCamera = fresh
-        val current = lastCamera ?: pattern.next()
+        val current = lastCamera ?: pattern().next()
         preview = current
         loop.step(current)?.let { decoded = it }
     }
 
-    fun restartCamera() {
-        camera.restart()
+    fun applySettings(updated: CameraSettings) {
+        if (updated == settings) return
+        settings = updated
+        camera.restart(updated)
+        resetLoop()
+        pattern = null
+        lastCamera = null
+        preview = null
+        decoded = null
     }
+
+    fun restartCamera() {
+        camera.restart(settings)
+        resetLoop()
+        lastCamera = null
+        preview = null
+        decoded = null
+    }
+
+    private fun resetLoop() {
+        runCatching { loop.close() }
+        loop = EncodeDecodeLoop()
+    }
+
+    private fun pattern(): TestPattern =
+        pattern ?: TestPattern(settings.outputWidth, settings.outputHeight).also { pattern = it }
 
     fun close() {
         camera.close()
         loop.close()
-    }
-
-    private companion object {
-        const val WIDTH = 640
-        const val HEIGHT = 480
     }
 }
 
@@ -103,17 +125,17 @@ private class CameraSource {
         private set
 
     init {
-        restart()
+        restart(CameraSettings())
     }
 
-    fun restart() {
+    fun restart(settings: CameraSettings) {
         close()
         error = null
         latest.store(null)
         try {
             val system = cameraSystem()
             this.system = system
-            val camera = system.defaultCamera(CameraLensFacing.FRONT)
+            val camera = system.defaultCamera(settings.lensFacing)
                 ?: system.cameras().firstOrNull()
             if (camera == null) {
                 source = "no camera - synthetic test pattern"
@@ -122,9 +144,10 @@ private class CameraSource {
             val session = system.open(
                 camera,
                 CameraConfig(
-                    format = CameraFormat(640, 480, PixelFormat.I420, 30),
-                    lensFacing = camera.lensFacing,
-                    mirrorHorizontally = camera.lensFacing == CameraLensFacing.FRONT,
+                    format = settings.format(),
+                    lensFacing = settings.lensFacing,
+                    rotationDegrees = settings.rotationDegrees,
+                    mirrorHorizontally = settings.mirrorHorizontally,
                 ),
             )
             this.session = session
@@ -136,7 +159,8 @@ private class CameraSource {
                 },
             )
             source = "${camera.name} ${session.format.width}x${session.format.height} " +
-                "@${session.format.frameRate}fps (${system.name})"
+                "@${session.format.frameRate}fps, ${settings.rotationDegrees} deg" +
+                (if (settings.mirrorHorizontally) " mirror" else "") + " (${system.name})"
         } catch (t: Throwable) {
             error = t.message ?: t.toString()
             source = "camera unavailable - synthetic test pattern"

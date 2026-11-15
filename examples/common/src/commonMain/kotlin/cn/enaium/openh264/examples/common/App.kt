@@ -8,10 +8,12 @@ package cn.enaium.openh264.examples.common
 import cn.enaium.camera.I420Frame
 import cn.enaium.imgui.ImFontConfig
 import cn.enaium.imgui.ImGui
+import cn.enaium.imgui.ImGuiChildFlags
 import cn.enaium.imgui.ImGuiCond
 import cn.enaium.imgui.ImGuiWindowFlags
 import cn.enaium.imgui.ImTextureID
 import cn.enaium.imgui.ImVec2
+import cn.enaium.imgui.ImVec4
 import cn.enaium.imgui.backends.sdl.ImGuiSdlBackend
 import cn.enaium.imgui.backends.sdl.ImGuiSdlRendererBackend
 import cn.enaium.imgui.backends.sdl.toImTextureID
@@ -94,7 +96,7 @@ fun runExample(frames: Int = Int.MAX_VALUE, driver: AppFrameDriver? = null) {
         val texData = fonts.getTexDataAsRGBA32()
         fonts.setTexID(backend.uploadFontTexture(texData.pixels, texData.width, texData.height))
 
-        val ui = ExampleUi(renderer, backend)
+        val ui = ExampleUi(renderer, backend, pipeline.settings)
         var running = true
         var frameCount = 0
 
@@ -180,7 +182,24 @@ private class FrameTextures(
 private class ExampleUi(
     renderer: cn.enaium.sdl.SDLRenderer,
     backend: ImGuiSdlRendererBackend,
+    initial: CameraSettings,
 ) {
+    private val resolutions = CameraOptions.resolutions
+    private val resolutionLabels = resolutions.map { "${it.first}x${it.second}" }.toTypedArray()
+    private val resolutionIndex = IntArray(1) {
+        resolutions.indexOfFirst { it.first == initial.width && it.second == initial.height }
+            .coerceAtLeast(0)
+    }
+    private val rotationLabels = CameraOptions.rotations.map { "$it deg" }.toTypedArray()
+    private val rotationIndex = IntArray(1) {
+        CameraOptions.rotations.indexOf(initial.rotationDegrees).coerceAtLeast(0)
+    }
+    private val lensLabels = arrayOf("Front", "Back")
+    private val lensIndex = IntArray(1) {
+        CameraOptions.lenses.indexOf(initial.lensFacing).coerceAtLeast(0)
+    }
+    private val mirror = booleanArrayOf(initial.mirrorHorizontally)
+
     private val cameraTextures = FrameTextures(renderer, backend)
     private val decodedTextures = FrameTextures(renderer, backend)
     private var lastCamera: I420Frame? = null
@@ -192,8 +211,14 @@ private class ExampleUi(
     private var lastDecodedCount = 0L
     private var encodeRate = 0f
     private var decodeRate = 0f
+    private var applied = initial
 
     fun draw(pipeline: ExamplePipeline) {
+        if (pipeline.settings != applied) {
+            applied = pipeline.settings
+            lastCamera = null
+            lastDecoded = null
+        }
         pipeline.preview?.let { lastCamera = it }
         pipeline.decoded?.let { lastDecoded = it }
         val status = pipeline.status
@@ -204,26 +229,72 @@ private class ExampleUi(
         ImGui.setNextWindowSize(display, ImGuiCond.ALWAYS)
         ImGui.begin("openh264-kmp", null, WINDOW_FLAGS)
 
-        ImGui.text("OpenH264 ${OpenH264.libraryVersion} (api ${OpenH264.apiBuild}) - camera-kmp + ${platformEncoderName} encode")
-        ImGui.text("camera: ${status.source}")
-        ImGui.text(
-            "ui ${uiFps.toInt()} fps  |  encode ${encodeRate.toInt()}/s  decode ${decodeRate.toInt()}/s  |  " +
-                "encoded ${status.encodedFrames}  |  decoded ${status.decodedFrames}  |  " +
-                "last ${status.lastFrameSize} B",
-        )
-        ImGui.text("bitrate: ${bitrateKbps(status)} kbit/s")
-        status.error?.let { ImGui.text("error: $it") }
-
-        if (ImGui.button("restart camera")) pipeline.restartCamera()
-        ImGui.separator()
-
         val available = ImGui.getContentRegionAvail()
-        val gap = 8f
-        val halfWidth = (available.x - gap) / 2f
-        drawPicture("camera (camera-kmp)", lastCamera, cameraTextures, halfWidth, available.y)
-        ImGui.sameLine(0f, gap)
-        drawPicture("decoded (OpenH264)", lastDecoded, decodedTextures, halfWidth, available.y)
+        val controlsWidth = min(320f, available.x * 0.45f)
+        if (controlsWidth > 1f) {
+            if (ImGui.beginChild("##controls", ImVec2(controlsWidth, 0f), ImGuiChildFlags.BORDERS)) {
+                ImGui.text("OpenH264 ${OpenH264.libraryVersion} (api ${OpenH264.apiBuild})")
+                ImGui.separatorText("Capture")
+
+                ImGui.setNextItemWidth(200f)
+                if (ImGui.combo("Resolution", resolutionIndex, resolutionLabels)) {
+                    apply(pipeline)
+                }
+                ImGui.setNextItemWidth(200f)
+                if (ImGui.combo("Rotation", rotationIndex, rotationLabels)) {
+                    apply(pipeline)
+                }
+                ImGui.setNextItemWidth(200f)
+                if (ImGui.combo("Lens", lensIndex, lensLabels)) {
+                    apply(pipeline)
+                }
+                if (ImGui.checkbox("Mirror", mirror)) {
+                    apply(pipeline)
+                }
+
+                ImGui.separatorText("Pipeline")
+                ImGui.text("camera: ${status.source}")
+                ImGui.text(
+                    "ui ${uiFps.toInt()} fps  |  encode ${encodeRate.toInt()}/s  decode ${decodeRate.toInt()}/s",
+                )
+                ImGui.text(
+                    "encoded ${status.encodedFrames}  |  decoded ${status.decodedFrames}  |  " +
+                        "last ${status.lastFrameSize} B",
+                )
+                ImGui.text("bitrate: ${bitrateKbps(status)} kbit/s")
+                status.error?.let {
+                    ImGui.separator()
+                    ImGui.textColored(ImVec4(1f, 0.35f, 0.35f, 1f), it)
+                }
+                if (ImGui.button("restart camera")) pipeline.restartCamera()
+            }
+            ImGui.endChild()
+            ImGui.sameLine()
+        }
+
+        if (ImGui.beginChild("##views", ImVec2(0f, 0f))) {
+            val views = ImGui.getContentRegionAvail()
+            val gap = 8f
+            val cellWidth = (views.x - gap) / 2f
+            drawPicture("camera (camera-kmp)", lastCamera, cameraTextures, cellWidth, views.y)
+            if (cellWidth > 1f) ImGui.sameLine()
+            drawPicture("decoded (OpenH264)", lastDecoded, decodedTextures, cellWidth, views.y)
+        }
+        ImGui.endChild()
         ImGui.end()
+    }
+
+    private fun apply(pipeline: ExamplePipeline) {
+        val resolution = resolutions.getOrNull(resolutionIndex[0]) ?: (640 to 480)
+        pipeline.applySettings(
+            pipeline.settings.copy(
+                width = resolution.first,
+                height = resolution.second,
+                rotationDegrees = CameraOptions.rotations[rotationIndex[0]],
+                mirrorHorizontally = mirror[0],
+                lensFacing = CameraOptions.lenses[lensIndex[0]],
+            ),
+        )
     }
 
     private fun drawPicture(
@@ -233,17 +304,27 @@ private class ExampleUi(
         width: Float,
         height: Float,
     ) {
-        ImGui.beginChild(label, ImVec2(width, height))
-        ImGui.text(label)
-        if (frame == null) {
-            ImGui.text("waiting for a picture...")
-            ImGui.endChild()
-            return
-        }
-        val room = ImGui.getContentRegionAvail()
-        val scale = min(room.x / frame.width, room.y / frame.height).coerceAtLeast(0f)
-        if (scale > 0f) {
-            ImGui.image(textures.upload(frame), ImVec2(frame.width * scale, frame.height * scale))
+        if (width <= 1f || height <= 1f) return
+        if (ImGui.beginChild("##$label", ImVec2(width, height), ImGuiChildFlags.BORDERS)) {
+            ImGui.text(label)
+            if (frame == null) {
+                ImGui.textDisabled("waiting for a picture...")
+            } else {
+                val room = ImGui.getContentRegionAvail()
+                val scale = min(room.x / frame.width, room.y / frame.height).coerceAtLeast(0f)
+                val imageWidth = frame.width * scale
+                val imageHeight = frame.height * scale
+                if (imageWidth > 1f && imageHeight > 1f) {
+                    val cursor = ImGui.getCursorPos()
+                    ImGui.setCursorPos(
+                        ImVec2(
+                            cursor.x + (room.x - imageWidth) / 2f,
+                            cursor.y + (room.y - imageHeight) / 2f,
+                        ),
+                    )
+                    ImGui.image(textures.upload(frame), ImVec2(imageWidth, imageHeight))
+                }
+            }
         }
         ImGui.endChild()
     }

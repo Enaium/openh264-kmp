@@ -134,6 +134,11 @@ pattern is used only until the camera delivers its first frame (or when no
 camera exists), so the preview never alternates between the test pattern and
 the camera.
 
+The left-hand panel of the UI edits the capture parameters: resolution
+(320x240 through 1920x1080), clockwise rotation (0/90/180/270), front/back
+lens and horizontal mirroring. Changing one restarts the camera session and
+recreates the encoder/decoder chain for the new dimensions.
+
 `examples/common` is also the wasmJs browser host: its Emscripten runtimes
 (sdl-kmp, imgui-kmp and camera-kmp) are installed as npm packages and served
 next to the Kotlin module, and `requestAnimationFrame` drives the shared loop.
