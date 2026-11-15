@@ -4,8 +4,12 @@ import cn.enaium.camera.CameraFormat
 import cn.enaium.camera.CameraLensFacing
 import cn.enaium.camera.PixelFormat
 
+/** Where the pictures come from. */
+internal enum class CaptureSource { CAMERA, TEST_PATTERN }
+
 /** Capture parameters the left-hand panel edits. */
 internal data class CameraSettings(
+    val source: CaptureSource = CaptureSource.CAMERA,
     val width: Int = 640,
     val height: Int = 480,
     val rotationDegrees: Int = 0,
@@ -31,5 +35,6 @@ internal object CameraOptions {
         1920 to 1080,
     )
     val rotations: List<Int> = listOf(0, 90, 180, 270)
+    val sources: List<CaptureSource> = listOf(CaptureSource.CAMERA, CaptureSource.TEST_PATTERN)
     val lenses: List<CameraLensFacing> = listOf(CameraLensFacing.FRONT, CameraLensFacing.BACK)
 }

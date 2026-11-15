@@ -134,9 +134,11 @@ pattern is used only until the camera delivers its first frame (or when no
 camera exists), so the preview never alternates between the test pattern and
 the camera.
 
-The left-hand panel of the UI edits the capture parameters: resolution
-(320x240 through 1920x1080), clockwise rotation (0/90/180/270), front/back
-lens and horizontal mirroring. Changing one restarts the camera session and
+The left-hand panel of the UI edits the capture parameters: image source
+(camera or a generated test pattern), resolution (320x240 through 1920x1080),
+clockwise rotation (0/90/180/270), front/back lens and horizontal mirroring.
+Rotation and mirroring are applied by the example to both sources, so the
+test pattern previews the same transform as the camera. Changing one restarts the camera session and
 recreates the encoder/decoder chain for the new dimensions.
 
 `examples/common` is also the wasmJs browser host: its Emscripten runtimes

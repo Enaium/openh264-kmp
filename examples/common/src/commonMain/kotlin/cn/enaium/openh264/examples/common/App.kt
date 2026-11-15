@@ -184,6 +184,10 @@ private class ExampleUi(
     backend: ImGuiSdlRendererBackend,
     initial: CameraSettings,
 ) {
+    private val sourceLabels = arrayOf("Camera", "Test pattern")
+    private val sourceIndex = IntArray(1) {
+        CameraOptions.sources.indexOf(initial.source).coerceAtLeast(0)
+    }
     private val resolutions = CameraOptions.resolutions
     private val resolutionLabels = resolutions.map { "${it.first}x${it.second}" }.toTypedArray()
     private val resolutionIndex = IntArray(1) {
@@ -236,25 +240,34 @@ private class ExampleUi(
                 ImGui.text("OpenH264 ${OpenH264.libraryVersion} (api ${OpenH264.apiBuild})")
                 ImGui.separatorText("Capture")
 
-                ImGui.setNextItemWidth(200f)
-                if (ImGui.combo("Resolution", resolutionIndex, resolutionLabels)) {
+                ImGui.text("Source")
+                ImGui.setNextItemWidth(-1f)
+                if (ImGui.combo("##source", sourceIndex, sourceLabels)) {
                     apply(pipeline)
                 }
-                ImGui.setNextItemWidth(200f)
-                if (ImGui.combo("Rotation", rotationIndex, rotationLabels)) {
+                ImGui.text("Resolution")
+                ImGui.setNextItemWidth(-1f)
+                if (ImGui.combo("##resolution", resolutionIndex, resolutionLabels)) {
                     apply(pipeline)
                 }
-                ImGui.setNextItemWidth(200f)
-                if (ImGui.combo("Lens", lensIndex, lensLabels)) {
+                ImGui.text("Rotation")
+                ImGui.setNextItemWidth(-1f)
+                if (ImGui.combo("##rotation", rotationIndex, rotationLabels)) {
                     apply(pipeline)
                 }
-                if (ImGui.checkbox("Mirror", mirror)) {
+                ImGui.text("Lens")
+                ImGui.setNextItemWidth(-1f)
+                if (ImGui.combo("##lens", lensIndex, lensLabels)) {
+                    apply(pipeline)
+                }
+                if (ImGui.button(if (mirror[0]) "Mirror: on" else "Mirror: off")) {
+                    mirror[0] = !mirror[0]
                     apply(pipeline)
                 }
 
                 ImGui.separatorText("Pipeline")
-                ImGui.text("camera: ${status.source}")
-                ImGui.text(
+                ImGui.textWrapped("camera: ${status.source}")
+                ImGui.textWrapped(
                     "ui ${uiFps.toInt()} fps  |  encode ${encodeRate.toInt()}/s  decode ${decodeRate.toInt()}/s",
                 )
                 ImGui.text(
@@ -288,6 +301,7 @@ private class ExampleUi(
         val resolution = resolutions.getOrNull(resolutionIndex[0]) ?: (640 to 480)
         pipeline.applySettings(
             pipeline.settings.copy(
+                source = CameraOptions.sources[sourceIndex[0]],
                 width = resolution.first,
                 height = resolution.second,
                 rotationDegrees = CameraOptions.rotations[rotationIndex[0]],

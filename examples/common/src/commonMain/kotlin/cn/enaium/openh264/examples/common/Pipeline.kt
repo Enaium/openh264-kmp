@@ -72,17 +72,35 @@ internal class ExamplePipeline {
         )
 
     fun pump() {
-        val fresh = camera.poll()
-        if (fresh != null) lastCamera = fresh
-        val current = lastCamera ?: pattern().next()
+        val current = when (settings.source) {
+            CaptureSource.TEST_PATTERN -> pattern().next().transformed()
+            CaptureSource.CAMERA -> {
+                val fresh = camera.poll()
+                if (fresh != null) lastCamera = fresh.transformed()
+                lastCamera ?: pattern().next().transformed()
+            }
+        }
         preview = current
         loop.step(current)?.let { decoded = it }
+    }
+
+    private fun I420Frame.transformed(): I420Frame {
+        if (settings.rotationDegrees == 0 && !settings.mirrorHorizontally) return this
+        return toCameraFrame(
+            pixelFormat = PixelFormat.I420,
+            rotationDegrees = settings.rotationDegrees,
+            mirrorHorizontally = settings.mirrorHorizontally,
+        ).toI420()
     }
 
     fun applySettings(updated: CameraSettings) {
         if (updated == settings) return
         settings = updated
-        camera.restart(updated)
+        if (updated.source == CaptureSource.CAMERA) {
+            camera.restart(updated)
+        } else {
+            camera.useTestPattern()
+        }
         resetLoop()
         pattern = null
         lastCamera = null
@@ -91,7 +109,7 @@ internal class ExamplePipeline {
     }
 
     fun restartCamera() {
-        camera.restart(settings)
+        if (settings.source == CaptureSource.CAMERA) camera.restart(settings) else camera.useTestPattern()
         resetLoop()
         lastCamera = null
         preview = null
@@ -104,7 +122,7 @@ internal class ExamplePipeline {
     }
 
     private fun pattern(): TestPattern =
-        pattern ?: TestPattern(settings.outputWidth, settings.outputHeight).also { pattern = it }
+        pattern ?: TestPattern(settings.width, settings.height).also { pattern = it }
 
     fun close() {
         camera.close()
@@ -132,6 +150,10 @@ private class CameraSource {
         close()
         error = null
         latest.store(null)
+        if (settings.source == CaptureSource.TEST_PATTERN) {
+            source = "synthetic test pattern"
+            return
+        }
         try {
             val system = cameraSystem()
             this.system = system
@@ -146,8 +168,10 @@ private class CameraSource {
                 CameraConfig(
                     format = settings.format(),
                     lensFacing = settings.lensFacing,
-                    rotationDegrees = settings.rotationDegrees,
-                    mirrorHorizontally = settings.mirrorHorizontally,
+                    // The example applies rotation and mirroring itself so the
+                    // camera and the test pattern share one transform path.
+                    rotationDegrees = 0,
+                    mirrorHorizontally = false,
                 ),
             )
             this.session = session
@@ -159,8 +183,7 @@ private class CameraSource {
                 },
             )
             source = "${camera.name} ${session.format.width}x${session.format.height} " +
-                "@${session.format.frameRate}fps, ${settings.rotationDegrees} deg" +
-                (if (settings.mirrorHorizontally) " mirror" else "") + " (${system.name})"
+                "@${session.format.frameRate}fps (${system.name})"
         } catch (t: Throwable) {
             error = t.message ?: t.toString()
             source = "camera unavailable - synthetic test pattern"
@@ -171,6 +194,13 @@ private class CameraSource {
         val frame = latest.load()
         if (frame != null) latest.store(null)
         return frame
+    }
+
+    /** Releases the camera when the generated pattern becomes the source. */
+    fun useTestPattern() {
+        close()
+        error = null
+        source = "synthetic test pattern"
     }
 
     fun close() {
