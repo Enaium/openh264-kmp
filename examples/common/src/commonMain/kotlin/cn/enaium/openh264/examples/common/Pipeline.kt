@@ -72,16 +72,27 @@ internal class ExamplePipeline {
         )
 
     fun pump() {
-        val current = when (settings.source) {
-            CaptureSource.TEST_PATTERN -> pattern().next().transformed()
+        val base = when (settings.source) {
+            CaptureSource.TEST_PATTERN -> pattern().next()
             CaptureSource.CAMERA -> {
                 val fresh = camera.poll()
-                if (fresh != null) lastCamera = fresh.transformed()
-                lastCamera ?: pattern().next().transformed()
+                if (fresh != null) lastCamera = fresh
+                lastCamera ?: pattern().next()
             }
         }
-        preview = current
-        loop.step(current)?.let { decoded = it }
+        // The preview shows the capture as-is apart from rotation; only the
+        // picture that enters the encoder/decoder applies the mirror toggle.
+        preview = base.rotated()
+        loop.step(base.transformed())?.let { decoded = it }
+    }
+
+    private fun I420Frame.rotated(): I420Frame {
+        if (settings.rotationDegrees == 0) return this
+        return toCameraFrame(
+            pixelFormat = PixelFormat.I420,
+            rotationDegrees = settings.rotationDegrees,
+            mirrorHorizontally = false,
+        ).toI420()
     }
 
     private fun I420Frame.transformed(): I420Frame {

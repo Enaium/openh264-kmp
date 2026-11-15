@@ -260,8 +260,7 @@ private class ExampleUi(
                 if (ImGui.combo("##lens", lensIndex, lensLabels)) {
                     apply(pipeline)
                 }
-                if (ImGui.button(if (mirror[0]) "Mirror: on" else "Mirror: off")) {
-                    mirror[0] = !mirror[0]
+                if (ImGui.checkbox("Mirror output", mirror)) {
                     apply(pipeline)
                 }
 
