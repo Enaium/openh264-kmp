@@ -11,7 +11,7 @@ OpenH264's assembly kernels are disabled: the portable C/C++ implementation
 runs everywhere, which keeps a single code path across x86, ARM, Android,
 MinGW and WebAssembly.
 
-Binding version: **2.7.0.1** (OpenH264 `2.7.0`, decoder API `20700`).
+Binding version: **1.0.1-fixed.2.7.0** (OpenH264 `2.7.0`, decoder API `20700`).
 
 ## Supported targets
 
@@ -39,9 +39,9 @@ portable single-thread decoder path as well.
 
 The standalone module, the JS glue and the licence are also published as the
 `@enaium/openh264-kmp` npm package (`:openh264-kmp:assembleWasmNpm` stages it in
-`build/npm`, `:openh264-kmp:publishWasmNpm` publishes it). npm only accepts
-three-component semver, so `2.7.0.1` is published as `2.7.0-1` under
-the `latest` tag. Plain JavaScript apps instantiate it without Kotlin:
+`build/npm`, `:openh264-kmp:publishWasmNpm` publishes it). The fixed version is
+already valid npm semver, so it is published verbatim under the `latest` tag.
+Plain JavaScript apps instantiate it without Kotlin:
 
 ```js
 import { initOpenH264Kmp } from "@enaium/openh264-kmp";
@@ -59,7 +59,7 @@ This build is decoder-only and 8-bit. It outputs 4:2:0 (I420) pictures.
 
 ```kotlin
 dependencies {
-    implementation("cn.enaium.openh264:openh264-kmp:2.7.0.1")
+    implementation("cn.enaium.openh264:openh264-kmp:1.0.1-fixed.2.7.0")
 }
 ```
 
@@ -113,7 +113,7 @@ libyuv, MediaCodec and most upload paths expect.
 
 `OpenH264.libraryVersion`, `libraryVersionPacked` and `apiBuild` report the
 native release (`2.7.0`, `20700`, `20700`); `OpenH264.VERSION` is the binding
-version (`2.7.0.1`).
+version (`1.0.1-fixed.2.7.0`).
 
 ## Examples
 

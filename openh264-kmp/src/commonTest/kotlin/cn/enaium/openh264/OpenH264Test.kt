@@ -38,7 +38,7 @@ class OpenH264Test {
 
     @Test
     fun versionMatchesThePinnedRelease() {
-        assertEquals("2.7.0.1", OpenH264.VERSION)
+        assertEquals("1.0.1-fixed.2.7.0", OpenH264.VERSION)
         assertEquals("2.7.0", OpenH264.libraryVersion)
         assertEquals(20700, OpenH264.libraryVersionPacked)
         assertEquals(20700, OpenH264.apiBuild)

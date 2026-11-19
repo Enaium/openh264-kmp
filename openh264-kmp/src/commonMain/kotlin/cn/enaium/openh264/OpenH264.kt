@@ -33,7 +33,7 @@ package cn.enaium.openh264
  */
 object OpenH264 {
     /** Version of this Kotlin Multiplatform binding. */
-    const val VERSION: String = "2.7.0.1"
+    const val VERSION: String = "1.0.1-fixed.2.7.0"
 
     /** Bit depth of every picture this build decodes. */
     const val BIT_DEPTH: Int = 8
