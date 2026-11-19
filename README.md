@@ -166,8 +166,8 @@ python3 -m http.server 8080 --directory examples/common/build/dist/wasmJs/produc
 ```
 
 The SDL3 and imgui-kmp APIs are published on Maven Central
-(`cn.enaium.sdl:sdl-kmp:3.4.18.2`, `cn.enaium.imgui:imgui-kmp:1.93.0.2`); the
-browser runtimes are `@enaium/sdl-kmp@3.4.18-2`, `@enaium/imgui-kmp@1.93.0-2`
+(`cn.enaium.sdl:sdl-kmp:1.0.14-fixed.3.4.18`, `cn.enaium.imgui:imgui-kmp:1.0.17-fixed.1.93.0`); the
+browser runtimes are `@enaium/sdl-kmp@1.0.14-fixed.3.4.18`, `@enaium/imgui-kmp@1.0.17-fixed.1.93.0`
 and `@enaium/camera-kmp@1.0.0`.
 
 ## Building from source

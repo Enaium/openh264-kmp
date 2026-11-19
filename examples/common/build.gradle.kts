@@ -178,8 +178,8 @@ kotlin {
         wasmJsMain {
             dependencies {
                 implementation(libs.kotlinx.browser)
-                implementation(npm("@enaium/sdl-kmp", "3.4.18-2"))
-                implementation(npm("@enaium/imgui-kmp", "1.93.0-2"))
+                implementation(npm("@enaium/sdl-kmp", "1.0.14-fixed.3.4.18"))
+                implementation(npm("@enaium/imgui-kmp", "1.0.17-fixed.1.93.0"))
                 implementation(npm("@enaium/camera-kmp", "1.0.0"))
             }
         }
@@ -191,7 +191,10 @@ kotlin {
 // The SDL, imgui and camera Emscripten runtimes are npm packages installed by
 // the Kotlin/Wasm toolchain; serve them next to the Kotlin module so
 // index.html can initialize them before importing common.js.
-val wasmNodeModules = rootProject.layout.buildDirectory.dir("wasm/node_modules/@enaium")
+val wasmNodeModules = rootProject.layout.buildDirectory.dir(
+    "wasm/packages/${rootProject.name}-examples-common/node_modules/@enaium",
+)
+val hoistedWasmNodeModules = rootProject.layout.buildDirectory.dir("wasm/node_modules/@enaium")
 
 val copyWasmAssets = tasks.register<Copy>("copyWasmAssets") {
     description = "Copies the sdl/imgui/camera Emscripten runtimes into the web resources."
@@ -202,7 +205,7 @@ val copyWasmAssets = tasks.register<Copy>("copyWasmAssets") {
     from(wasmNodeModules.map { it.dir("imgui-kmp") }) {
         include("imgui_kmp_glue.js", "imgui_kmp_exports.js", "imgui_wasm.js", "imgui_wasm.wasm")
     }
-    from(wasmNodeModules.map { it.dir("camera-kmp") }) {
+    from(hoistedWasmNodeModules.map { it.dir("camera-kmp") }) {
         include("camera-kmp-web.js")
     }
     into(layout.buildDirectory.dir("generated/wasmResources"))
